@@ -3,7 +3,7 @@
   "id": "zenith",
   "version": "${version}",
   "name": "Zenith",
-  "description": "Remove jittering of the moving sun caused by client desync!",
+  "description": "Remove jittering of the daylight cycle caused by client desync!",
   "authors": [
     "hugeblank"
   ],
