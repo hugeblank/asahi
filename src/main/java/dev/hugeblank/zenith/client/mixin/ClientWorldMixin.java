@@ -2,11 +2,14 @@ package dev.hugeblank.zenith.client.mixin;
 
 import dev.hugeblank.zenith.client.Constants;
 import dev.hugeblank.zenith.client.TimeSmoother;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.profiler.Profiler;
 import net.minecraft.world.GameRules;
 import net.minecraft.world.MutableWorldProperties;
@@ -22,6 +25,8 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     @Shadow
     @Final
     private ClientWorld.Properties clientWorldProperties;
+
+    @Shadow public abstract void processPendingUpdate(BlockPos pos, BlockState state, Vec3d playerPos);
 
     @Unique
     private double factor = 0D;
@@ -76,11 +81,12 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
 
     @Override
     public void zenith$updateTimes(WorldTimeUpdateS2CPacket packet) {
-        if (Math.abs(packet.getTimeOfDay() - properties.getTimeOfDay()) >= Constants.SKIP_DURATION) {
+        long diff = packet.getTimeOfDay() - properties.getTimeOfDay();
+        System.out.println(diff);
+        if (Math.abs(diff) >= Constants.SKIP_DURATION) {
             zenith$setTime(packet.getTime());
             zenith$setTimeOfDay(packet.getTimeOfDay());
         }
-
-        factor = Math.max((double) (packet.getTimeOfDay() - properties.getTimeOfDay()) / Constants.TPS, Constants.MIN_MOVE_FACTOR);
+        factor = Math.max( (double) (diff + Constants.TPS) / Constants.TPS, Constants.MIN_MOVE_FACTOR);
     }
 }
