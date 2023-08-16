@@ -1,7 +1,7 @@
-package dev.hugeblank.zenith.client.mixin;
+package dev.hugeblank.asahi.client.mixin;
 
-import dev.hugeblank.zenith.client.Constants;
-import dev.hugeblank.zenith.client.TimeSmoother;
+import dev.hugeblank.asahi.client.Constants;
+import dev.hugeblank.asahi.client.TimeSmoother;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;

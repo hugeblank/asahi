@@ -1,6 +1,6 @@
-package dev.hugeblank.zenith.client.mixin;
+package dev.hugeblank.asahi.client.mixin;
 
-import dev.hugeblank.zenith.client.TimeSmoother;
+import dev.hugeblank.asahi.client.TimeSmoother;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.util.telemetry.WorldSession;
 import net.minecraft.client.world.ClientWorld;

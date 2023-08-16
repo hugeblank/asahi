@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
-  "id": "zenith",
+  "id": "asahi",
   "version": "${version}",
-  "name": "Zenith",
+  "name": "Asahi",
   "description": "Remove jittering of the daylight cycle caused by server lag!",
   "authors": [
     "hugeblank"
   ],
   "contact": {
-    "repo": "https://github.com/hugeblank/zenith"
+    "repo": "https://github.com/hugeblank/asahi"
   },
   "license": "MIT",
-  "icon": "assets/zenith/icon.png",
+  "icon": "assets/asahi/icon.png",
   "environment": "client",
   "mixins": [
     {
-      "config": "zenith.client.mixins.json",
+      "config": "asahi.client.mixins.json",
       "environment": "client"
     }
   ],

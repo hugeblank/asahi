@@ -1,4 +1,4 @@
-package dev.hugeblank.zenith.client;
+package dev.hugeblank.asahi.client;
 
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 

@@ -1,4 +1,4 @@
-package dev.hugeblank.zenith.client;
+package dev.hugeblank.asahi.client;
 
 //TODO: Make configurable
 public class Constants {
