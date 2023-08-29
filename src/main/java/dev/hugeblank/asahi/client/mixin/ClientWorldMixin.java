@@ -82,7 +82,7 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     @Override
     public void zenith$updateTimes(WorldTimeUpdateS2CPacket packet) {
         long diff = packet.getTimeOfDay() - properties.getTimeOfDay();
-        System.out.println(diff);
+        //System.out.println(diff); // TODO: Debug logging that doesn't show up in prod
         if (Math.abs(diff) >= Constants.SKIP_DURATION) {
             zenith$setTime(packet.getTime());
             zenith$setTimeOfDay(packet.getTimeOfDay());
