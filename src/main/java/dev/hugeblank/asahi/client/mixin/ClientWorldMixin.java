@@ -2,14 +2,11 @@ package dev.hugeblank.asahi.client.mixin;
 
 import dev.hugeblank.asahi.client.Constants;
 import dev.hugeblank.asahi.client.TimeSmoother;
-import net.minecraft.block.BlockState;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.profiler.Profiler;
 import net.minecraft.world.GameRules;
 import net.minecraft.world.MutableWorldProperties;
@@ -26,12 +23,12 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     @Final
     private ClientWorld.Properties clientWorldProperties;
 
-    @Shadow public abstract void processPendingUpdate(BlockPos pos, BlockState state, Vec3d playerPos);
-
     @Unique
     private double factor = 0D;
     @Unique
     private double remainder = 0D;
+    @Unique
+    private long lastPacketTime = 0L;
 
     protected ClientWorldMixin(
             MutableWorldProperties properties,
@@ -54,12 +51,6 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
 
     @Unique
     private void zenith$setTimeOfDay(long timeOfDay) {
-        if (timeOfDay < 0L) {
-            timeOfDay = -timeOfDay;
-            properties.getGameRules().get(GameRules.DO_DAYLIGHT_CYCLE).set(false, null);
-        } else {
-            properties.getGameRules().get(GameRules.DO_DAYLIGHT_CYCLE).set(true, null);
-        }
         this.clientWorldProperties.setTimeOfDay(timeOfDay);
     }
 
@@ -76,17 +67,27 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
         if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
             zenith$setTimeOfDay(properties.getTimeOfDay() + increment);
         }
-        remainder = remainder-increment;
+        remainder = remainder - increment;
     }
 
     @Override
     public void zenith$updateTimes(WorldTimeUpdateS2CPacket packet) {
-        long diff = packet.getTimeOfDay() - properties.getTimeOfDay();
-        //System.out.println(diff); // TODO: Debug logging that doesn't show up in prod
-        if (Math.abs(diff) >= Constants.SKIP_DURATION) {
+        long currentPacketTime = packet.getTimeOfDay();
+        long localDiff = currentPacketTime - properties.getTimeOfDay();
+        // System.out.println("packetDiff: " + packetDiff);
+        // System.out.println("localDiff: " + localDiff); // TODO: Debug logging that doesn't show up in prod
+        if (Math.abs(localDiff) >= Constants.SKIP_DURATION) {
             zenith$setTime(packet.getTime());
             zenith$setTimeOfDay(packet.getTimeOfDay());
+            factor = 1;
+        } else {
+            long packetDiff = currentPacketTime - lastPacketTime;
+            if (packetDiff < 0) {
+                factor = Math.min( (double) (localDiff + Constants.TPS) / Constants.TPS, -Constants.MIN_MOVE_FACTOR);
+            } else {
+                factor = Math.max( (double) (localDiff + Constants.TPS) / Constants.TPS, Constants.MIN_MOVE_FACTOR);
+            }
         }
-        factor = Math.max( (double) (diff + Constants.TPS) / Constants.TPS, Constants.MIN_MOVE_FACTOR);
+        lastPacketTime = currentPacketTime;
     }
 }
