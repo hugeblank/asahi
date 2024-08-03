@@ -73,24 +73,17 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     @Override
     public void zenith$updateTimes(WorldTimeUpdateS2CPacket packet) {
         long currentPacketTime = packet.getTimeOfDay();
-        long packetDiff = currentPacketTime - lastPacketTime;
         long localDiff = currentPacketTime - properties.getTimeOfDay();
         // System.out.println("packetDiff: " + packetDiff);
         // System.out.println("localDiff: " + localDiff); // TODO: Debug logging that doesn't show up in prod
-        boolean skip = Math.abs(localDiff) >= Constants.SKIP_DURATION;
-        if (packetDiff < 0) {
-            if (skip) {
-                zenith$setTime(packet.getTime());
-                zenith$setTimeOfDay(packet.getTimeOfDay());
-                factor = 0;
-            } else {
-                factor = Math.min( (double) (localDiff + Constants.TPS) / Constants.TPS, -Constants.MIN_MOVE_FACTOR);
-            }
+        if (Math.abs(localDiff) >= Constants.SKIP_DURATION) {
+            zenith$setTime(packet.getTime());
+            zenith$setTimeOfDay(packet.getTimeOfDay());
+            factor = 1;
         } else {
-            if (skip) {
-                zenith$setTime(packet.getTime());
-                zenith$setTimeOfDay(packet.getTimeOfDay());
-                factor = 0;
+            long packetDiff = currentPacketTime - lastPacketTime;
+            if (packetDiff < 0) {
+                factor = Math.min( (double) (localDiff + Constants.TPS) / Constants.TPS, -Constants.MIN_MOVE_FACTOR);
             } else {
                 factor = Math.max( (double) (localDiff + Constants.TPS) / Constants.TPS, Constants.MIN_MOVE_FACTOR);
             }
