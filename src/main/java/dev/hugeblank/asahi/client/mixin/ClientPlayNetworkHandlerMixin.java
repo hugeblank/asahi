@@ -16,9 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPlayNetworkHandler.class)
 public abstract class ClientPlayNetworkHandlerMixin extends ClientCommonNetworkHandler {
-
-
-    @Shadow public abstract ClientWorld getWorld();
+    
+    @Shadow private ClientWorld world;
 
     protected ClientPlayNetworkHandlerMixin(MinecraftClient client, ClientConnection connection, ClientConnectionState connectionState) {
         super(client, connection, connectionState);
@@ -26,7 +25,7 @@ public abstract class ClientPlayNetworkHandlerMixin extends ClientCommonNetworkH
 
     @Inject(at=@At(value="INVOKE", target = "Lnet/minecraft/client/world/ClientWorld;setTime(J)V"), method="onWorldTimeUpdate(Lnet/minecraft/network/packet/s2c/play/WorldTimeUpdateS2CPacket;)V", cancellable = true)
     private void clearTickable(WorldTimeUpdateS2CPacket packet, CallbackInfo ci) {
-        ((TimeSmoother) getWorld()).asahi$updateTimes(packet);
+        ((TimeSmoother) world).asahi$updateTimes(packet);
         worldSession.setTick(packet.getTime());
         ci.cancel();
     }
