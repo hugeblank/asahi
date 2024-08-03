@@ -13,17 +13,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPlayNetworkHandler.class)
-public class ClientPlayNetworkHandlerMixin {
-    @Shadow
-    private ClientWorld world;
+public abstract class ClientPlayNetworkHandlerMixin {
+    
+    @Shadow private ClientWorld world;
 
-    @Final
-    @Shadow
-    private WorldSession field_34963;
+    @Shadow @Final private WorldSession field_34963;
 
     @Inject(at=@At(value="INVOKE", target = "Lnet/minecraft/client/world/ClientWorld;setTime(J)V"), method="onWorldTimeUpdate(Lnet/minecraft/network/packet/s2c/play/WorldTimeUpdateS2CPacket;)V", cancellable = true)
     private void clearTickable(WorldTimeUpdateS2CPacket packet, CallbackInfo ci) {
-        ((TimeSmoother) world).updateTimes(packet);
+        ((TimeSmoother) world).asahi$updateTimes(packet);
         field_34963.setTick(packet.getTime());
         ci.cancel();
     }
