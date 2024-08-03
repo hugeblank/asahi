@@ -45,12 +45,12 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     }
 
     @Unique
-    private void zenith$setTime(long time) {
+    private void setTime(long time) {
         this.clientWorldProperties.setTime(time);
     }
 
     @Unique
-    private void zenith$setTimeOfDay(long timeOfDay) {
+    private void setTimeOfDay(long timeOfDay) {
         this.clientWorldProperties.setTimeOfDay(timeOfDay);
     }
 
@@ -63,22 +63,22 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     private void tickTime() {
         remainder += factor;
         long increment = (long) remainder;
-        zenith$setTime(properties.getTime() + increment);
+        setTime(properties.getTime() + increment);
         if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
-            zenith$setTimeOfDay(properties.getTimeOfDay() + increment);
+            setTimeOfDay(properties.getTimeOfDay() + increment);
         }
         remainder = remainder - increment;
     }
 
     @Override
-    public void zenith$updateTimes(WorldTimeUpdateS2CPacket packet) {
+    public void updateTimes(WorldTimeUpdateS2CPacket packet) {
         long currentPacketTime = packet.getTimeOfDay();
         long localDiff = currentPacketTime - properties.getTimeOfDay();
         // System.out.println("packetDiff: " + packetDiff);
         // System.out.println("localDiff: " + localDiff); // TODO: Debug logging that doesn't show up in prod
         if (Math.abs(localDiff) >= Constants.SKIP_DURATION) {
-            zenith$setTime(packet.getTime());
-            zenith$setTimeOfDay(packet.getTimeOfDay());
+            setTime(packet.getTime());
+            setTimeOfDay(packet.getTimeOfDay());
             factor = 1;
         } else {
             long packetDiff = currentPacketTime - lastPacketTime;
