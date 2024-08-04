@@ -1,4 +1,4 @@
-# Asahi ![Modrinth Downloads](https://img.shields.io/modrinth/dt/asahi?color=00AF5C&label=modrinth&style=flat&logo=modrinth)
+# Asahi [![Modrinth Downloads](https://img.shields.io/modrinth/dt/asahi?color=00AF5C&label=modrinth&style=flat&logo=modrinth)](https://modrinth.com/mod/asahi)
 
 Client side Minecraft mod that removes daylight cycle jittering caused by server lag!
 
