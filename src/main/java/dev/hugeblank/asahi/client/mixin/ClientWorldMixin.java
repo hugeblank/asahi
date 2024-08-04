@@ -44,17 +44,6 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
         super(properties, registryRef, registryManager, dimensionEntry, profiler, isClient, debugWorld, biomeAccess, maxChainedNeighborUpdates);
     }
 
-    @Unique
-    private void setTime(long time) {
-        this.clientWorldProperties.setTime(time);
-    }
-
-    @Unique
-    private void setTimeOfDay(long timeOfDay) {
-        this.clientWorldProperties.setTimeOfDay(timeOfDay);
-    }
-
-
     /**
      * @author hugeblank
      * @reason Smooth out daylight cycle & remove client de-sync jitter.
@@ -63,22 +52,22 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     private void tickTime() {
         remainder += factor;
         long increment = (long) remainder;
-        setTime(properties.getTime() + increment);
+        clientWorldProperties.setTime(properties.getTime() + increment);
         if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
-            setTimeOfDay(properties.getTimeOfDay() + increment);
+            clientWorldProperties.setTimeOfDay(properties.getTimeOfDay() + increment);
         }
         remainder = remainder - increment;
     }
 
     @Override
-    public void updateTimes(WorldTimeUpdateS2CPacket packet) {
+    public void asahi$updateTimes(WorldTimeUpdateS2CPacket packet) {
         long currentPacketTime = packet.getTimeOfDay();
         long localDiff = currentPacketTime - properties.getTimeOfDay();
         // System.out.println("packetDiff: " + packetDiff);
         // System.out.println("localDiff: " + localDiff); // TODO: Debug logging that doesn't show up in prod
         if (Math.abs(localDiff) >= Constants.SKIP_DURATION) {
-            setTime(packet.getTime());
-            setTimeOfDay(packet.getTimeOfDay());
+            clientWorldProperties.setTime(packet.getTime());
+            clientWorldProperties.setTimeOfDay(packet.getTimeOfDay());
             factor = 1;
         } else {
             long packetDiff = currentPacketTime - lastPacketTime;
