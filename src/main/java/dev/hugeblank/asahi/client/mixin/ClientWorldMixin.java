@@ -63,7 +63,6 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
         shouldTickDay = packet.getTimeOfDay() > 0;
 
         timeProperty.update(packet.getTime());
-        System.out.println(packet.getTimeOfDay());
         dayTimeProperty.update(shouldTickDay ? packet.getTimeOfDay() : packet.getTimeOfDay()*-1);
     }
 }
