@@ -32,26 +32,25 @@ public class InterpolatedTickProperty {
     }
 
     public void update(long serverValue) {
-        int localDiff = (int) (serverValue - getProperty.get());
-        float minMoveFactor = 1f / TPS; // MIN_MOVE_FACTOR
-        points.add((double) (localDiff + TPS) / TPS);
-        double avg = 0, weights = 0; // weighted average
-        int size = points.size();
-        for (int i = 0; i < size; i++) {
-            double weight = size - i + 1;
-            weight *= weight;
-            weights += weight;
-            avg += points.get(i) * weight;
-        }
-        avg /= weights;
-        double factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
 
         // If the next value would take more than 60 seconds at the current TPS to reach, just skip to the position.
         if (Math.abs(serverValue-getProperty.get()) >= 60 * TPS) {
             this.factor = 1;
             setProperty.accept(serverValue);
         } else {
-            this.factor = factor;
+            int localDiff = (int) (serverValue - getProperty.get());
+            float minMoveFactor = 1f / TPS; // MIN_MOVE_FACTOR
+            points.add((double) (localDiff + TPS) / TPS);
+            double avg = 0, weights = 0; // weighted average
+            int size = points.size();
+            for (int i = 0; i < size; i++) {
+                double weight = size - i + 1;
+                weight *= weight;
+                weights += weight;
+                avg += points.get(i) * weight;
+            }
+            avg /= weights;
+            this.factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
             if (FabricLoader.getInstance().isDevelopmentEnvironment())
                 System.out.format("%s: %s server by %d ticks. Speed: %f\n", prefix, (localDiff < 0 ? "ahead of" : "behind"), Math.abs(localDiff), avg);
         }
