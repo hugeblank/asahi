@@ -1,75 +1,59 @@
 package dev.hugeblank.asahi.client.mixin;
 
 import dev.hugeblank.asahi.client.EvictingList;
-import dev.hugeblank.asahi.client.TimeSmoother;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.profiler.Profiler;
-import net.minecraft.world.GameRules;
-import net.minecraft.world.MutableWorldProperties;
-import net.minecraft.world.World;
-import net.minecraft.world.dimension.DimensionType;
 import net.minecraft.world.tick.TickManager;
 import org.spongepowered.asm.mixin.*;
-
-import java.util.function.Supplier;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientWorld.class)
-public abstract class ClientWorldMixin extends World implements TimeSmoother {
+public abstract class ClientWorldMixin{
 
     @Shadow @Final private ClientWorld.Properties clientWorldProperties;
 
     @Shadow @Final private TickManager tickManager;
 
+    @Shadow private boolean shouldTickTimeOfDay;
+
     @Unique private final EvictingList<Double> points = new EvictingList<>(10);
     @Unique private double factor = 0D;
     @Unique private double remainder = 0D;
 
-    protected ClientWorldMixin(
-            MutableWorldProperties properties,
-            RegistryKey<World> registryRef,
-            DynamicRegistryManager registryManager,
-            RegistryEntry<DimensionType> dimensionEntry,
-            Supplier<Profiler> profiler,
-            boolean isClient,
-            boolean debugWorld,
-            long biomeAccess,
-            int maxChainedNeighborUpdates
-    ) {
-        super(properties, registryRef, registryManager, dimensionEntry, profiler, isClient, debugWorld, biomeAccess, maxChainedNeighborUpdates);
-    }
 
-    /**
-     * @author hugeblank
-     * @reason Smooth out daylight cycle & remove client de-sync jitter.
-     */
-    @Overwrite
-    private void tickTime() {
+    // Poor man's non-nuclear redirect
+    @Inject(at=@At("HEAD"), method = "tickTime", cancellable = true, order = 10000)
+    private void tickTime(CallbackInfo ci) {
         remainder += factor; // add remainder to factor
         long increment = (long) remainder; // truncate floating value
-        clientWorldProperties.setTime(properties.getTime() + increment);
-        if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
-            clientWorldProperties.setTimeOfDay(properties.getTimeOfDay() + increment);
-        }
+        clientWorldProperties.setTime(clientWorldProperties.getTime() + increment);
+        if (this.shouldTickTimeOfDay)
+            clientWorldProperties.setTimeOfDay(clientWorldProperties.getTimeOfDay() + increment);
         // subtract the incremented integer, preserving the floating point remainder for later
         remainder -= increment;
+        ci.cancel();
     }
 
-    @Override
-    public void asahi$updateTimes(WorldTimeUpdateS2CPacket packet) {
-        float tickRate = tickManager.getTickRate(); // TPS
-        long currentPacketTime = packet.getTimeOfDay();
-        int localDiff = (int) (currentPacketTime - properties.getTimeOfDay());
-        if (Math.abs(localDiff) >= 60*tickRate) { // SKIP_DURATION
-            clientWorldProperties.setTime(packet.getTime());
-            clientWorldProperties.setTimeOfDay(packet.getTimeOfDay());
+    @Inject(at=@At("HEAD"), method = "setTime", cancellable = true, order = 10000)
+    public void setTime(long time, long timeOfDay, boolean tickTimeOfDay, CallbackInfo ci) {
+        float tickRate = tickManager.getTickRate(); // Get the TPS
+        int localDiff = (int) (time - clientWorldProperties.getTime());
+        // If the next position is greater than where the cycle would be 60 seconds from now, just snap to the position.
+        // We do this instead of rapidly speeding the cycle up to its true position (i.e. after sleeping).
+        if (Math.abs(localDiff) >= 60*tickRate) {
+            clientWorldProperties.setTime(time);
+            if (tickTimeOfDay || clientWorldProperties.getTimeOfDay() != timeOfDay)
+                // Only snap the time of day when necessary.
+                // (When doDaylightCycle == true, if the time of day is out of sync from the server)
+                clientWorldProperties.setTimeOfDay(timeOfDay);
         } else {
-            float minMoveFactor = 1f/tickRate; // MIN_MOVE_FACTOR
-            points.add((double) (localDiff + tickRate) / tickRate);
-            double avg = 0, weights = 0; // weighted average
+            float minMoveFactor = 1f/tickRate; // Create a minimum move factor, so that the sun never appears frozen.
+            points.add((double) (localDiff + tickRate) / tickRate); // Project where the sun will be in the next second
+            // Get the weighted average of the last n ticks
+            // (see EvictingList instantiation for n)
+            double avg = 0, weights = 0;
             int size = points.size();
             for (int i = 0; i < size; i++) {
                 double weight = size - i + 1;
@@ -78,9 +62,11 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
                 avg += points.get(i)*weight;
             }
             avg /= weights;
-            // TODO: Debug logging that doesn't show up in prod
-            // System.out.println((localDiff < 0 ? "ahead of" : "behind") + " server by " + Math.abs(localDiff) + " ticks. Speed: " + avg);
             factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
+            if (FabricLoader.getInstance().isDevelopmentEnvironment())
+                System.out.println((localDiff < 0 ? "ahead of" : "behind") + " server by " + Math.abs(localDiff) + " ticks. Speed: " + avg);
         }
+        this.shouldTickTimeOfDay = tickTimeOfDay;
+        ci.cancel();
     }
 }
