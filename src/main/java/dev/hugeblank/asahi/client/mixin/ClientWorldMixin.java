@@ -1,19 +1,23 @@
 package dev.hugeblank.asahi.client.mixin;
 
-import dev.hugeblank.asahi.client.EvictingList;
 import dev.hugeblank.asahi.client.TimeSmoother;
+import dev.hugeblank.asahi.client.InterpolatedTickProperty;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.profiler.Profiler;
-import net.minecraft.world.GameRules;
 import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionType;
 import net.minecraft.world.tick.TickManager;
 import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.function.Supplier;
 
@@ -24,9 +28,10 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
 
     @Shadow @Final private TickManager tickManager;
 
-    @Unique private final EvictingList<Double> points = new EvictingList<>(10);
-    @Unique private double factor = 0D;
-    @Unique private double remainder = 0D;
+    @Unique private boolean shouldTickDay = true;
+
+    @Unique private InterpolatedTickProperty timeProperty;
+    @Unique private InterpolatedTickProperty dayTimeProperty;
 
     protected ClientWorldMixin(
             MutableWorldProperties properties,
@@ -42,45 +47,28 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
         super(properties, registryRef, registryManager, dimensionEntry, profiler, isClient, debugWorld, biomeAccess, maxChainedNeighborUpdates);
     }
 
-    /**
-     * @author hugeblank
-     * @reason Smooth out daylight cycle & remove client de-sync jitter.
-     */
-    @Overwrite
-    private void tickTime() {
-        remainder += factor; // add remainder to factor
-        long increment = (long) remainder; // truncate floating value
-        clientWorldProperties.setTime(properties.getTime() + increment);
-        if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
-            clientWorldProperties.setTimeOfDay(properties.getTimeOfDay() + increment);
+    @Inject(at=@At("TAIL"), method = "<init>")
+    private void init(ClientPlayNetworkHandler netHandler, ClientWorld.Properties properties, RegistryKey registryRef, RegistryEntry registryEntry, int loadDistance, int simulationDistance, Supplier profiler, WorldRenderer worldRenderer, boolean debugWorld, long seed, CallbackInfo ci) {
+        if (this.isClient) {
+            this.timeProperty = new InterpolatedTickProperty("time", this.clientWorldProperties::setTime, this.clientWorldProperties::getTime, tickManager);
+            this.dayTimeProperty = new InterpolatedTickProperty("timeOfDay", this.clientWorldProperties::setTimeOfDay, this.clientWorldProperties::getTimeOfDay, tickManager);
         }
-        // subtract the incremented integer, preserving the floating point remainder for later
-        remainder -= increment;
+    }
+
+    @Inject(at=@At("HEAD"), method = "tickTime", cancellable = true)
+    public void tickTime(CallbackInfo ci) {
+        if (this.isClient) {
+            timeProperty.tick();
+            if (shouldTickDay) dayTimeProperty.tick();
+            ci.cancel();
+        }
     }
 
     @Override
     public void asahi$updateTimes(WorldTimeUpdateS2CPacket packet) {
-        float tickRate = tickManager.getTickRate(); // TPS
-        long currentPacketTime = packet.getTimeOfDay();
-        int localDiff = (int) (currentPacketTime - properties.getTimeOfDay());
-        if (Math.abs(localDiff) >= 60*tickRate) { // SKIP_DURATION
-            clientWorldProperties.setTime(packet.getTime());
-            clientWorldProperties.setTimeOfDay(packet.getTimeOfDay());
-        } else {
-            float minMoveFactor = 1f/tickRate; // MIN_MOVE_FACTOR
-            points.add((double) (localDiff + tickRate) / tickRate);
-            double avg = 0, weights = 0; // weighted average
-            int size = points.size();
-            for (int i = 0; i < size; i++) {
-                double weight = size - i + 1;
-                weight *= weight;
-                weights += weight;
-                avg += points.get(i)*weight;
-            }
-            avg /= weights;
-            // TODO: Debug logging that doesn't show up in prod
-            // System.out.println((localDiff < 0 ? "ahead of" : "behind") + " server by " + Math.abs(localDiff) + " ticks. Speed: " + avg);
-            factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
-        }
+        shouldTickDay = packet.getTimeOfDay() > 0;
+
+        timeProperty.update(packet.getTime());
+        dayTimeProperty.update(shouldTickDay ? packet.getTimeOfDay() : packet.getTimeOfDay()*-1);
     }
 }
