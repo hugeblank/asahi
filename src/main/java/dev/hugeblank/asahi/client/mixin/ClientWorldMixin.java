@@ -3,66 +3,68 @@ package dev.hugeblank.asahi.client.mixin;
 import dev.hugeblank.asahi.client.EvictingList;
 import dev.hugeblank.asahi.client.TimeSmoother;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.client.network.packet.WorldTimeUpdateS2CPacket;
 import net.minecraft.util.profiler.Profiler;
+import net.minecraft.world.ExtendedBlockView;
 import net.minecraft.world.GameRules;
-import net.minecraft.world.MutableWorldProperties;
+import net.minecraft.world.IWorld;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.ChunkManager;
+import net.minecraft.world.dimension.Dimension;
 import net.minecraft.world.dimension.DimensionType;
+import net.minecraft.world.level.LevelProperties;
 import org.spongepowered.asm.mixin.*;
 
-import java.util.function.Supplier;
+import java.util.function.BiFunction;
 
-@Mixin(ClientWorld.class)
-public abstract class ClientWorldMixin extends World implements TimeSmoother {
-
-    @Shadow @Final private ClientWorld.Properties clientWorldProperties;
+@Mixin(World.class)
+public abstract class ClientWorldMixin implements ExtendedBlockView, IWorld, AutoCloseable, TimeSmoother {
 
     @Unique private final EvictingList<Double> points = new EvictingList<>(10);
     @Unique private double factor = 0D;
     @Unique private double remainder = 0D;
 
     protected ClientWorldMixin(
-            MutableWorldProperties properties,
-            RegistryKey<World> registryRef,
-            DynamicRegistryManager registryManager,
-            RegistryEntry<DimensionType> dimensionEntry,
-            Supplier<Profiler> profiler,
-            boolean isClient,
-            boolean debugWorld,
-            long biomeAccess,
-            int maxChainedNeighborUpdates
+            LevelProperties levelProperties, DimensionType dimensionType, BiFunction<World, Dimension, ChunkManager> biFunction, Profiler profiler, boolean bl
     ) {
-        super(properties, registryRef, registryManager, dimensionEntry, profiler, isClient, debugWorld, biomeAccess, maxChainedNeighborUpdates);
+        super();
     }
 
     /**
      * @author hugeblank
      * @reason Smooth out daylight cycle & remove client de-sync jitter.
      */
+    @Shadow
     @Overwrite
-    private void tickTime() {
+    protected void tickTime() {
         remainder += factor; // add remainder to factor
         long increment = (long) remainder; // truncate floating value
-        clientWorldProperties.setTime(properties.getTime() + increment);
-        if (properties.getGameRules().getBoolean(GameRules.DO_DAYLIGHT_CYCLE)) {
-            clientWorldProperties.setTimeOfDay(properties.getTimeOfDay() + increment);
+        this.setTime(this.getTime() + increment);
+        if (this.getGameRules().getBoolean(GameRules.getKeys().get("doDaylightCycle").toString())) {
+            this.setTimeOfDay(this.getTimeOfDay() + increment);
         }
         // subtract the incremented integer, preserving the floating point remainder for later
         remainder -= increment;
     }
 
+    @Shadow public abstract void setTime(long l);
+
+    @Shadow public abstract void setTimeOfDay(long l);
+
+    @Shadow public abstract long getTime();
+
+    @Shadow public abstract GameRules getGameRules();
+
+    @Shadow public abstract long getTimeOfDay();
+
     @Override
     public void asahi$updateTimes(WorldTimeUpdateS2CPacket packet) {
         final int TPS = 20;
         long currentPacketTime = packet.getTimeOfDay();
-        int localDiff = (int) (currentPacketTime - properties.getTimeOfDay());
+        int localDiff = (int) (currentPacketTime - this.getTimeOfDay());
         if (Math.abs(localDiff) >= 60* TPS) { // SKIP_DURATION
-            clientWorldProperties.setTime(packet.getTime());
-            clientWorldProperties.setTimeOfDay(packet.getTimeOfDay());
+            this.setTime(packet.getTime());
+            this.setTimeOfDay(packet.getTimeOfDay());
         } else {
             float minMoveFactor = 1f/ TPS; // MIN_MOVE_FACTOR
             points.add((double) (localDiff + TPS) / TPS);
