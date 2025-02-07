@@ -23,8 +23,6 @@ import java.util.function.BiFunction;
 @Mixin(World.class)
 public abstract class ClientWorldMixin implements ExtendedBlockView, IWorld, AutoCloseable, TimeSmoother {
 
-    @Unique private final EvictingList<Double> points = new EvictingList<>(10);
-    @Unique private long lastPacketTimeOfDay = 0;
     @Unique private boolean shouldTickDay = true;
 
     @Unique private InterpolatedTickProperty timeProperty;
@@ -39,16 +37,16 @@ public abstract class ClientWorldMixin implements ExtendedBlockView, IWorld, Aut
     @Inject(at=@At("TAIL"), method = "<init>")
     private void init(LevelProperties levelProperties, DimensionType dimensionType, BiFunction biFunction, Profiler profiler, boolean bl, CallbackInfo ci) {
         if (this.isClient) {
-            this.timeProperty = new InterpolatedTickProperty(this::setTime, this::getTime);
-            this.dayTimeProperty = new InterpolatedTickProperty(this::setTimeOfDay, this::getTimeOfDay);
+            this.timeProperty = new InterpolatedTickProperty("time", this::setTime, this::getTime);
+            this.dayTimeProperty = new InterpolatedTickProperty("timeOfDay", this::setTimeOfDay, this::getTimeOfDay);
         }
     }
 
     @Inject(at=@At("HEAD"), method = "tickTime", cancellable = true)
     public void tickTime(CallbackInfo ci) {
         if (this.isClient) {
-            timeProperty.increment();
-            if (shouldTickDay) dayTimeProperty.increment();
+            timeProperty.tick();
+            if (shouldTickDay) dayTimeProperty.tick();
             ci.cancel();
         }
     }
@@ -65,39 +63,9 @@ public abstract class ClientWorldMixin implements ExtendedBlockView, IWorld, Aut
 
     @Override
     public void asahi$updateTimes(WorldTimeUpdateS2CPacket packet) {
-        if (lastPacketTimeOfDay == packet.getTimeOfDay()) {
-            if (!shouldTickDay) {
-                this.setTimeOfDay(packet.getTimeOfDay());
-            }
-            shouldTickDay = false;
-        } else {
-            shouldTickDay = true;
-        }
+        shouldTickDay = packet.getTimeOfDay() > 0;
 
-        final int TPS = 20;
-        int localDiff = (int) (packet.getTime() - this.getTime());
-        if (Math.abs(localDiff) >= 60 * TPS) { // SKIP_DURATION
-            this.setTime(packet.getTime());
-            if (shouldTickDay) this.setTimeOfDay(packet.getTimeOfDay());
-        } else {
-            float minMoveFactor = 1f/ TPS; // MIN_MOVE_FACTOR
-            points.add((double) (localDiff + TPS) / TPS);
-            double avg = 0, weights = 0; // weighted average
-            int size = points.size();
-            for (int i = 0; i < size; i++) {
-                double weight = size - i + 1;
-                weight *= weight;
-                weights += weight;
-                avg += points.get(i)*weight;
-            }
-            avg /= weights;
-            double factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
-            timeProperty.setFactor(factor);
-            dayTimeProperty.setFactor(factor);
-
-            if (FabricLoader.getInstance().isDevelopmentEnvironment())
-                System.out.format("%s server by %d ticks. Speed: %f\n", (localDiff < 0 ? "ahead of" : "behind"), Math.abs(localDiff), avg);
-        }
-        lastPacketTimeOfDay = packet.getTimeOfDay();
+        timeProperty.update(packet.getTime());
+        dayTimeProperty.update(shouldTickDay ? packet.getTimeOfDay() : packet.getTimeOfDay()*-1);
     }
 }
