@@ -2,11 +2,13 @@ package dev.hugeblank.asahi.client.mixin;
 
 import dev.hugeblank.asahi.client.EvictingList;
 import dev.hugeblank.asahi.client.TimeSmoother;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
+import net.minecraft.registry.DynamicRegistryManager;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.profiler.Profiler;
-import net.minecraft.util.registry.RegistryEntry;
-import net.minecraft.util.registry.RegistryKey;
 import net.minecraft.world.GameRules;
 import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.World;
@@ -25,16 +27,16 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
     @Unique private double remainder = 0D;
 
     protected ClientWorldMixin(
-        MutableWorldProperties properties,
-        RegistryKey<World> registryManager,
-        RegistryEntry<DimensionType> registryEntry,
-        Supplier<Profiler> profiler,
-        boolean isClient,
-        boolean debugWorld,
-        long seed
+            MutableWorldProperties properties, RegistryKey<World> registryRef, DynamicRegistryManager registryManager,
+            RegistryEntry<DimensionType> dimensionEntry, Supplier<Profiler> profiler, boolean isClient,
+            boolean debugWorld, long biomeAccess, int maxChainedNeighborUpdates
     ) {
-        super(properties, registryManager, registryEntry, profiler, isClient, debugWorld, seed);
+        super(
+                properties, registryRef, registryManager, dimensionEntry, profiler, isClient, debugWorld, biomeAccess,
+                maxChainedNeighborUpdates
+        );
     }
+
 
     /**
      * @author hugeblank
@@ -72,8 +74,8 @@ public abstract class ClientWorldMixin extends World implements TimeSmoother {
                 avg += points.get(i)*weight;
             }
             avg /= weights;
-            // TODO: Debug logging that doesn't show up in prod
-            // System.out.println((localDiff < 0 ? "ahead of" : "behind") + " server by " + Math.abs(localDiff) + " ticks. Speed: " + avg);
+            if (FabricLoader.getInstance().isDevelopmentEnvironment())
+                System.out.println((localDiff < 0 ? "ahead of" : "behind") + " server by " + Math.abs(localDiff) + " ticks. Speed: " + avg);
             factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
         }
     }
