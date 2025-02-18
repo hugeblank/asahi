@@ -8,8 +8,8 @@ import java.util.function.Supplier;
 
 public class InterpolatedTickProperty {
 
-    private final EvictingList<Double> points = new EvictingList<>(10);
-    private double factor = 1;
+    private final EvictingList<Double> points = new EvictingList<>(Launch.CONFIG.interpolateSamples());
+    private double factor = Launch.CONFIG.initialFactor();
     private double remainder = 0;
 
     private final String prefix;
@@ -25,7 +25,7 @@ public class InterpolatedTickProperty {
     }
 
     public void tick() {
-        remainder += factor; // add remainder to factor
+        remainder += factor; // add factor to remainder
         long increment = (long) remainder; // truncate floating value
         setProperty.accept(getProperty.get() + increment);
         // subtract the incremented integer, preserving the floating point remainder for later
@@ -34,14 +34,14 @@ public class InterpolatedTickProperty {
 
     public void update(long serverValue) {
 
-        // If the next value would take more than 60 seconds at the current TPS to reach, just skip to the position.
-        if (Math.abs(serverValue-getProperty.get()) >= 60 * tickManager.getTickRate()) {
-            this.factor = 1;
+        // If the next value would take more than `skipDuration` seconds at the current TPS to reach, just skip to the position.
+        float tickRate = tickManager.getTickRate();
+        if (Math.abs(serverValue-getProperty.get()) >= Launch.CONFIG.skipDuration() * tickRate) {
+            factor = Launch.CONFIG.initialFactor();
             setProperty.accept(serverValue);
-        } else {
+        } else if (tickManager.shouldTick()){
             int localDiff = (int) (serverValue - getProperty.get());
-            float minMoveFactor = 1f / tickManager.getTickRate(); // MIN_MOVE_FACTOR
-            points.add((double) (localDiff + tickManager.getTickRate()) / tickManager.getTickRate());
+            points.add((double) (localDiff + tickRate) / Launch.CONFIG.standardTickRate());
             double avg = 0, weights = 0; // weighted average
             int size = points.size();
             for (int i = 0; i < size; i++) {
@@ -50,10 +50,9 @@ public class InterpolatedTickProperty {
                 weights += weight;
                 avg += points.get(i) * weight;
             }
-            avg /= weights;
-            this.factor = avg < 0 ? Math.min(avg, -minMoveFactor) : Math.max(avg, minMoveFactor);
+            factor = avg / weights;
             if (FabricLoader.getInstance().isDevelopmentEnvironment())
-                System.out.format("%s: %s server by %d ticks. Speed: %f\n", prefix, (localDiff < 0 ? "ahead of" : "behind"), Math.abs(localDiff), avg);
+                System.out.format("%s: %s server by %d ticks. Speed: %f. Tick Rate: %f.\n", prefix, (localDiff < 0 ? "ahead of" : "behind"), Math.abs(localDiff), factor, tickRate);
         }
     }
 }
