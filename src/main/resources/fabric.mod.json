@@ -19,6 +19,11 @@
       "environment": "client"
     }
   ],
+  "entrypoints": {
+    "client": [
+      "dev.hugeblank.asahi.client.Launch"
+    ]
+  },
   "depends": {
     "fabricloader": ">=${loader_version}",
     "minecraft": ">=${minecraft_version}"
