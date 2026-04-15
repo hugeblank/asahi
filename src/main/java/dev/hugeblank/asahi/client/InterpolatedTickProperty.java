@@ -1,7 +1,7 @@
 package dev.hugeblank.asahi.client;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.world.tick.TickManager;
+import net.minecraft.world.TickRateManager;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -15,13 +15,13 @@ public class InterpolatedTickProperty {
     private final String prefix;
     private final Consumer<Long> setProperty;
     private final Supplier<Long> getProperty;
-    private final TickManager tickManager;
+    private final TickRateManager tickRateManager;
 
-    public InterpolatedTickProperty(String prefix, Consumer<Long> setProperty, Supplier<Long> getProperty, TickManager tickManager) {
+    public InterpolatedTickProperty(String prefix, Consumer<Long> setProperty, Supplier<Long> getProperty, TickRateManager tickRateManager) {
         this.prefix = prefix;
         this.setProperty = setProperty;
         this.getProperty = getProperty;
-        this.tickManager = tickManager;
+        this.tickRateManager = tickRateManager;
     }
 
     public void tick() {
@@ -35,11 +35,11 @@ public class InterpolatedTickProperty {
     public void update(long serverValue) {
 
         // If the next value would take more than `skipDuration` seconds at the current TPS to reach, just skip to the position.
-        float tickRate = tickManager.getTickRate();
+        float tickRate = tickRateManager.tickrate();
         if (Math.abs(serverValue-getProperty.get()) >= Launch.CONFIG.skipDuration() * tickRate) {
             factor = Launch.CONFIG.initialFactor();
             setProperty.accept(serverValue);
-        } else if (tickManager.shouldTick()){
+        } else if (tickRateManager.runsNormally()){
             int localDiff = (int) (serverValue - getProperty.get());
             points.add((double) (localDiff + tickRate) / Launch.CONFIG.standardTickRate());
             double avg = 0, weights = 0; // weighted average

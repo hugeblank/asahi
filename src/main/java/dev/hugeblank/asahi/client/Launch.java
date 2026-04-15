@@ -4,10 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.util.crash.CrashException;
-import net.minecraft.util.crash.CrashReport;
+import net.minecraft.CrashReport;
+import net.minecraft.ReportedException;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +26,7 @@ public class Launch implements ClientModInitializer {
             try {
                 Files.writeString(PATH, json);
             } catch (IOException ex) {
-                throw new CrashException(CrashReport.create(ex, "Failed to initialize asahi config."));
+                throw new ReportedException(CrashReport.forThrowable(ex, "Failed to initialize asahi config."));
             }
         }
     }
